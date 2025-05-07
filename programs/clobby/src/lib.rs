@@ -10,15 +10,36 @@ declare_id!("4XVYzTX6F9wXfgYK9CnEKkLpQh3ptuthKkCixEBWHXa6");
 pub mod clobby {
     use super::*;
 
+    /// this is also a separate instruction, due to the reason mention below
+    pub fn init_market_authority(ctx:Context<InitMarketAuthority>) -> Result<()> {
+        instructions::init_market_authority(ctx)?;
+        Ok(())
+    }
+
     pub fn create_market(ctx: Context<CreateMarket>, args: CreateMarketArgs) -> Result<()> {
         instructions::create_market(ctx, args)?;
         Ok(())
     }
 
+    /// as the runtime limits the amount of data that can be loaded in the stack
+    /// we create this separate instruction, separate from the create_market
     pub fn create_bookside_accounts(ctx: Context<CreateBookSide>) -> Result<()> {
         instructions::create_book_side(ctx)?;
         Ok(())
     }
 
+    /// This is specially useful when matching the orders, we can directly increase or decrease the tokens
+    /// we can settle the final amount, when the user requests for it.
+    pub fn create_user_onchain_balance(ctx:Context<CreateUserOnchainBalance>) -> Result<()> {
+        instructions::create_user_onchain_balance(ctx)?;
+        Ok(())
+    }
+
+    pub fn settle_user_onchain_balance(ctx:Context<SettleUserOnchainBalance>) -> Result<()> {
+        instructions::settle_user_onchain_balance(ctx)?;
+        Ok(())
+    }
+
+    
     
 }
