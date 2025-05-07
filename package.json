@@ -1,11 +1,13 @@
 {
-  "license": "ISC",  
+  "license": "ISC",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1"
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana-developers/helpers": "^2.8.1",
+    "@solana/spl-token": "^0.4.13"
   },
   "devDependencies": {
     "chai": "^4.3.4",
