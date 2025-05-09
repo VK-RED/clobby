@@ -5,13 +5,13 @@ use anchor_lang::prelude::*;
 #[account]
 /// This is specially useful when matching the orders
 /// we can keep track of the tokens accrued
-pub struct UserOnchainBalance{
+pub struct UserBalance{
     pub market: Pubkey,
     pub user: Pubkey,
     pub base_token: Pubkey,
     pub quote_token: Pubkey,
-    pub base_onchain_amount: u64,
-    pub quote_onchain_amount: u64,
+    pub base_amount: u64,
+    pub quote_amount: u64,
 }
 
 pub enum ResetSide{
@@ -19,14 +19,14 @@ pub enum ResetSide{
     Quote
 }
 
-impl UserOnchainBalance{
+impl UserBalance{
     pub fn reset_balance(&mut self, side: ResetSide){
         match side {
             ResetSide::Base => {
-                self.base_onchain_amount = 0;
+                self.base_amount = 0;
             },
             ResetSide::Quote => {
-                self.quote_onchain_amount = 0;
+                self.quote_amount = 0;
             }
         }
     }

@@ -11,8 +11,6 @@ pub fn init_market_authority(_ctx:Context<InitMarketAuthority>) -> Result<()> {
 }
 
 
-
-
 #[derive(Accounts)]
 pub struct InitMarketAuthority<'info>{
     #[account(
@@ -28,7 +26,7 @@ pub struct InitMarketAuthority<'info>{
         seeds = [b"market", market.key().as_ref()],
         bump
     )]
-    ///CHECK: THIS IS PDA OF THE MARKET, THAT CAN SEND TOKENS
+    /// CHECK: THIS IS PDA OF THE MARKET, THAT CAN SEND TOKENS
     pub market_authority: UncheckedAccount<'info>,
 
     pub market: Account<'info, Market>,

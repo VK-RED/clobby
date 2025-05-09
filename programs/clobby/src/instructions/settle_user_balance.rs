@@ -1,17 +1,17 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
 
-use crate::state::{Market, ResetSide, UserOnchainBalance};
+use crate::state::{Market, ResetSide, UserBalance};
 
 
-pub fn settle_user_onchain_balance(ctx:Context<SettleUserOnchainBalance>) -> Result<()>{
+pub fn settle_user_balance(ctx:Context<SettleUserBalance>) -> Result<()>{
 
     let accounts = ctx.accounts;
 
-    let onchain_balance_account = &mut accounts.user_onchain_balance_account;
+    let balance_account = &mut accounts.user_balance_account;
 
-    let settle_base_token = if onchain_balance_account.base_onchain_amount > 0 {true} else {false};
-    let settle_quote_token = if onchain_balance_account.quote_onchain_amount > 0 {true} else {false};
+    let settle_base_token = if balance_account.base_amount > 0 {true} else {false};
+    let settle_quote_token = if balance_account.quote_amount > 0 {true} else {false};
 
     let market_key = accounts.market.key();
 
@@ -30,9 +30,9 @@ pub fn settle_user_onchain_balance(ctx:Context<SettleUserOnchainBalance>) -> Res
 
         let cpi_context = CpiContext::new(cpi_program.clone(), base_cpi_accounts).with_signer(signer_seeds);
 
-        token_interface::transfer_checked(cpi_context, onchain_balance_account.base_onchain_amount, accounts.base_token.decimals)?;
+        token_interface::transfer_checked(cpi_context, balance_account.base_amount, accounts.base_token.decimals)?;
 
-        onchain_balance_account.reset_balance(ResetSide::Quote);
+        balance_account.reset_balance(ResetSide::Quote);
     }
     else{
         msg!("No base token to settle");
@@ -48,9 +48,9 @@ pub fn settle_user_onchain_balance(ctx:Context<SettleUserOnchainBalance>) -> Res
 
         let cpi_context = CpiContext::new(cpi_program, quote_cpi_accounts).with_signer(signer_seeds);
 
-        token_interface::transfer_checked(cpi_context, onchain_balance_account.quote_onchain_amount, accounts.quote_token.decimals)?;
+        token_interface::transfer_checked(cpi_context, balance_account.quote_amount, accounts.quote_token.decimals)?;
 
-        onchain_balance_account.reset_balance(ResetSide::Quote);
+        balance_account.reset_balance(ResetSide::Quote);
     }
     else{
         msg!("No quote token to settle");
@@ -60,7 +60,7 @@ pub fn settle_user_onchain_balance(ctx:Context<SettleUserOnchainBalance>) -> Res
 }
 
 #[derive(Accounts)]
-pub struct SettleUserOnchainBalance<'info>{
+pub struct SettleUserBalance<'info>{
 
     #[account(
         mut,
@@ -80,9 +80,9 @@ pub struct SettleUserOnchainBalance<'info>{
     #[account(
         mut,
         has_one = user,
-        constraint = user_onchain_balance_account.market.key() == market.key()
+        constraint = user_balance_account.market.key() == market.key()
     )]
-    pub user_onchain_balance_account: Account<'info, UserOnchainBalance>,
+    pub user_balance_account: Account<'info, UserBalance>,
 
     #[account(
         token::mint = base_token.key(),

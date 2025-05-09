@@ -88,6 +88,6 @@ pub struct CreateMarket<'info> {
 #[derive(AnchorDeserialize, AnchorSerialize)]
 pub struct CreateMarketArgs{
     pub name: String, 
-    pub min_base_order_amount: u128,
-    pub min_quote_order_amount: u128,
+    pub min_base_order_amount: u64,
+    pub min_quote_order_amount: u64,
 }

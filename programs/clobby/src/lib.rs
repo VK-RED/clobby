@@ -30,13 +30,13 @@ pub mod clobby {
 
     /// This is specially useful when matching the orders, we can directly increase or decrease the tokens
     /// we can settle the final amount, when the user requests for it.
-    pub fn create_user_onchain_balance(ctx:Context<CreateUserOnchainBalance>) -> Result<()> {
-        instructions::create_user_onchain_balance(ctx)?;
+    pub fn create_user_balance_account(ctx:Context<CreateUserBalanceAccount>) -> Result<()> {
+        instructions::create_user_balance_account(ctx)?;
         Ok(())
     }
 
-    pub fn settle_user_onchain_balance(ctx:Context<SettleUserOnchainBalance>) -> Result<()> {
-        instructions::settle_user_onchain_balance(ctx)?;
+    pub fn settle_user_balance(ctx:Context<SettleUserBalance>) -> Result<()> {
+        instructions::settle_user_balance(ctx)?;
         Ok(())
     }
 
