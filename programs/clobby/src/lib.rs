@@ -17,11 +17,6 @@ pub mod clobby {
         Ok(())
     }
 
-    pub fn create_market(ctx: Context<CreateMarket>, args: CreateMarketArgs) -> Result<()> {
-        instructions::create_market(ctx, args)?;
-        Ok(())
-    }
-
     /// as the runtime limits the amount of data that can be loaded in the stack
     /// we create this separate instruction, separate from the create_market
     pub fn create_bookside_accounts(ctx: Context<CreateBookSide>) -> Result<()> {
@@ -29,9 +24,20 @@ pub mod clobby {
         Ok(())
     }
 
-    // pub fn create_market_events_account() -> Result<()> {
-    //     Ok(())
-    // }
+    pub fn create_market(ctx: Context<CreateMarket>, args: CreateMarketArgs) -> Result<()> {
+        instructions::create_market(ctx, args)?;
+        Ok(())
+    }
+
+    pub fn place_order(ctx:Context<PlaceOrder>, args: PlaceOrderArgs) -> Result<()> {
+        instructions::place_order(ctx, args)?;
+        Ok(())
+    }
+
+    pub fn cancel_order(ctx:Context<CancelOrder>, args:CancelOrderArgs) -> Result<()>{
+        instructions::cancel_order(ctx, args)?;
+        Ok(())
+    }
 
     /// This is specially useful when matching the orders, we can directly increase or decrease the tokens
     /// we can settle the final amount, when the user requests for it.

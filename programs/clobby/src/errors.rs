@@ -17,4 +17,7 @@ pub enum ClobbyProgramError {
     #[msg("Bookside can be either 0 or 1")]
     InvalidBookSide,
 
+    #[msg("Order Id Not found")]
+    InvalidOrderId
+
 }
