@@ -15,10 +15,13 @@ describe("clobby", () => {
   const keypair = anchor.Wallet.local().payer;
   const connection = provider.connection;
 
-
   const MAX_ACCOUNT_SPACE = 10_485_760; 
 
-  const initializeOrderSideAccounts = async () => {
+  const bidAccount = anchor.web3.Keypair.generate();
+  const askAccount = anchor.web3.Keypair.generate();
+  const marketEvent = anchor.web3.Keypair.generate();
+
+  const initOrderSideAndEventAccounts = async () => {
 
     const lamports = await connection.getMinimumBalanceForRentExemption(MAX_ACCOUNT_SPACE);
     
@@ -32,12 +35,9 @@ describe("clobby", () => {
     //   market.toBuffer(),
     // ], PROGRAM_ID);
 
-    const bidAccount = anchor.web3.Keypair.generate();
-    const askAccount = anchor.web3.Keypair.generate();
+    const tx1 = new anchor.web3.Transaction();
 
-    const tx = new anchor.web3.Transaction();
-
-    tx.add(
+    tx1.add(
       anchor.web3.SystemProgram.createAccount({
         fromPubkey: keypair.publicKey,
         newAccountPubkey: bidAccount.publicKey,
@@ -55,18 +55,36 @@ describe("clobby", () => {
     );
 
 
-    const sig = await connection.sendTransaction(tx, [keypair, bidAccount, askAccount]);
+    const sig = await connection.sendTransaction(tx1, [keypair, bidAccount, askAccount]);
     await connection.confirmTransaction(sig, "confirmed");
     
-    console.log("created accounts", bidAccount.publicKey.toBase58(), askAccount.publicKey.toBase58());
-    return {bidAccount, askAccount};
+    console.log("created bids and asks accounts", bidAccount.publicKey.toBase58(), askAccount.publicKey.toBase58());
+
+    const tx2 = new anchor.web3.Transaction();
+
+    tx2.add(
+      anchor.web3.SystemProgram.createAccount({
+        fromPubkey: keypair.publicKey,
+        newAccountPubkey: marketEvent.publicKey,
+        space: MAX_ACCOUNT_SPACE,
+        lamports,
+        programId: PROGRAM_ID,
+      }),
+    );
+
+    const sig2 = await connection.sendTransaction(tx2, [keypair, marketEvent]);
+    await connection.confirmTransaction(sig2, "confirmed");
+    
+    console.log("created market_event accounts", marketEvent.publicKey.toBase58());
+
+    return {bidAccount, askAccount, marketEvent};
   } 
 
 
   it("Should create Market !", async () => {
+    const market = anchor.web3.Keypair.generate();
 
-
-    const {bidAccount, askAccount} = await initializeOrderSideAccounts();
+    const {bidAccount, askAccount, marketEvent} = await initOrderSideAndEventAccounts();
 
     const baseToken = await makeTokenMint(
       connection,
@@ -87,13 +105,30 @@ describe("clobby", () => {
       
     )
 
-    const market = anchor.web3.Keypair.generate();
+    const initAuthorityAndEventIx = await program.methods
+    .initMarketAuthorityAndEvent()
+    .accounts({
+      market: market.publicKey.toBase58(),
+      marketEvent: marketEvent.publicKey.toBase58(),
+      user: keypair.publicKey.toBase58(),
+    })
+    .signers([keypair])
+    .instruction();
 
-    await program.methods
+
+    const createBooksideAccountsIx = await program.methods
+    .createBooksideAccounts()
+    .accounts({
+      asks: askAccount.publicKey.toBase58(),
+      bids: bidAccount.publicKey.toBase58(),
+      market: market.publicKey.toBase58(),
+    })
+    .instruction();
+
+    const createMarketIx = await program.methods
     .createMarket({
       name:"SOL_USDC",
-      minBaseOrderAmount: new anchor.BN(1000),
-      minQuoteOrderAmount: new anchor.BN(1000),
+      baseLotSize: new anchor.BN(1000),
     })
     .accounts({
       market: market.publicKey.toBase58(),
@@ -105,30 +140,18 @@ describe("clobby", () => {
       tokenProgram: TOKEN_2022_PROGRAM_ID,
     })
     .signers([market])
-    .rpc({commitment: "confirmed"});
+    .instruction();
 
+    const tx = new anchor.web3.Transaction();
 
-    await program.methods
-    .createBooksideAccounts()
-    .accounts({
-      asks: askAccount.publicKey.toBase58(),
-      bids: bidAccount.publicKey.toBase58(),
-      market: market.publicKey.toBase58(),
-    })
-    .rpc({commitment: "confirmed"});
+    tx.add(
+      createMarketIx,
+      initAuthorityAndEventIx, 
+      createBooksideAccountsIx
+    );
 
-
-    const marketAccount = await program.account.market.fetch(market.publicKey);
-    console.log("MARKET ACCOUNT IS : ");
-    console.log(marketAccount);
-
-    const bidsAccount = await program.account.bookSide.fetch(bidAccount.publicKey);
-    console.log("BIDS ACCOUNT IS : ");
-    console.log(bidsAccount);
-
-    const asksAccount = await program.account.bookSide.fetch(askAccount.publicKey);
-    console.log("ASKS ACCOUNT IS : ");
-    console.log(asksAccount);
+    const sig = await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair, market], {commitment: "confirmed"});
+    console.log("Signature is : ", sig);
   });
 
   ;
