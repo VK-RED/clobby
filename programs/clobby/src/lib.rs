@@ -11,6 +11,11 @@ declare_id!("4XVYzTX6F9wXfgYK9CnEKkLpQh3ptuthKkCixEBWHXa6");
 pub mod clobby {
     use super::*;
 
+    pub fn create_market(ctx: Context<CreateMarket>, args: CreateMarketArgs) -> Result<()> {
+        instructions::create_market(ctx, args)?;
+        Ok(())
+    }
+
     /// this is also a separate instruction, due to the reason mention below
     pub fn init_market_authority_and_event(ctx:Context<InitMarketAuthorityAndEvent>) -> Result<()> {
         instructions::init_market_authority_and_event(ctx)?;
@@ -21,11 +26,6 @@ pub mod clobby {
     /// we create this separate instruction, separate from the create_market
     pub fn create_bookside_accounts(ctx: Context<CreateBookSide>) -> Result<()> {
         instructions::create_book_side(ctx)?;
-        Ok(())
-    }
-
-    pub fn create_market(ctx: Context<CreateMarket>, args: CreateMarketArgs) -> Result<()> {
-        instructions::create_market(ctx, args)?;
         Ok(())
     }
 
