@@ -8,7 +8,7 @@ pub fn create_user_balance_account(ctx:Context<CreateUserBalanceAccount>) -> Res
 
     let balance_account = &mut accounts.user_onchain_balance;
 
-    balance_account.user = accounts.signer.key();
+    balance_account.user = accounts.user.key();
     balance_account.market = accounts.market.key();
     balance_account.base_token = accounts.market.base_token;
     balance_account.quote_token = accounts.market.quote_token;
@@ -25,15 +25,18 @@ pub struct CreateUserBalanceAccount<'info>{
         mut, 
         signer,
     )]
-    pub signer: Signer<'info>,
+    pub user: Signer<'info>,
 
     pub market: Account<'info, Market>,
     
     #[account(
         init,
         space = 8 + UserBalance::INIT_SPACE,
-        payer = signer,
+        payer = user,
+        seeds = [b"balance", user.key().as_ref()],
+        bump
     )]
+
     pub user_onchain_balance: Account<'info, UserBalance>,
 
     pub system_program: Program<'info, System>,

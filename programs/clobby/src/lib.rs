@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 pub mod state;
 pub mod instructions;
 mod errors;
+
 use instructions::*;
 
 declare_id!("4XVYzTX6F9wXfgYK9CnEKkLpQh3ptuthKkCixEBWHXa6");
@@ -11,8 +12,8 @@ pub mod clobby {
     use super::*;
 
     /// this is also a separate instruction, due to the reason mention below
-    pub fn init_market_authority(ctx:Context<InitMarketAuthority>) -> Result<()> {
-        instructions::init_market_authority(ctx)?;
+    pub fn init_market_authority_and_event(ctx:Context<InitMarketAuthorityAndEvent>) -> Result<()> {
+        instructions::init_market_authority_and_event(ctx)?;
         Ok(())
     }
 
@@ -27,6 +28,10 @@ pub mod clobby {
         instructions::create_book_side(ctx)?;
         Ok(())
     }
+
+    // pub fn create_market_events_account() -> Result<()> {
+    //     Ok(())
+    // }
 
     /// This is specially useful when matching the orders, we can directly increase or decrease the tokens
     /// we can settle the final amount, when the user requests for it.

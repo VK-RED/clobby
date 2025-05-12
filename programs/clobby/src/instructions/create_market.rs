@@ -6,8 +6,7 @@ use crate::state::Market;
 /// Initialize the market account as well bids and asks
 pub fn create_market(ctx: Context<CreateMarket>, args:CreateMarketArgs) -> Result<()> {
 
-    require_gt!(args.min_base_order_amount, 0);
-    require_gt!(args.min_quote_order_amount, 0);
+    require_gt!(args.base_lot_size, 0);
 
     let accounts = ctx.accounts;
 
@@ -19,9 +18,9 @@ pub fn create_market(ctx: Context<CreateMarket>, args:CreateMarketArgs) -> Resul
     market.base_token_vault = accounts.base_token_vault.key();
     market.quote_token_vault = accounts.quote_token_vault.key();
     market.name = args.name;
-    market.min_base_amount = args.min_base_order_amount;
-    market.min_quote_amount = args.min_quote_order_amount;
+    market.base_lot_size = args.base_lot_size;
     market.market_authority_bump = ctx.bumps.market_authority;
+    market.total_orders = 0;
 
     msg!("Market Account has been created Successfully!");
 
@@ -88,6 +87,5 @@ pub struct CreateMarket<'info> {
 #[derive(AnchorDeserialize, AnchorSerialize)]
 pub struct CreateMarketArgs{
     pub name: String, 
-    pub min_base_order_amount: u64,
-    pub min_quote_order_amount: u64,
+    pub base_lot_size: u64,
 }

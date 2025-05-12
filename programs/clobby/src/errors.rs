@@ -7,4 +7,14 @@ pub enum ClobbyProgramError {
 
     #[msg("Insufficient funds to place the order")]
     InSufficientBalance,
+
+    #[msg("Order has been filled Partially")]
+    OrderFilledPartially,
+
+    #[msg("Market Events has reached the limit")]
+    EventsMaxLimit,
+
+    #[msg("Bookside can be either 0 or 1")]
+    InvalidBookSide,
+
 }
