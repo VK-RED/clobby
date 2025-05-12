@@ -36,9 +36,7 @@ pub struct InitMarketAuthorityAndEvent<'info>{
     pub market_authority: UncheckedAccount<'info>,
 
     #[account(
-        zero,
-        seeds = [b"event", market.key().as_ref()],
-        bump,
+        zero
     )]
     pub market_event: AccountLoader<'info, MarketEvents>,
 

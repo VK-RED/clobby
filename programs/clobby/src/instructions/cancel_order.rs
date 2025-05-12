@@ -102,9 +102,7 @@ pub struct CancelOrder<'info>{
     pub market_authority: UncheckedAccount<'info>,
 
     #[account(
-        mut,
-        seeds = [b"event", market.key().as_ref()],
-        bump
+        mut
     )]
     pub market_events: AccountLoader<'info, MarketEvents>,
 
