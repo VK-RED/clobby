@@ -10,7 +10,7 @@ pub enum Side{
 
 #[zero_copy]
 #[derive(
-    PartialEq, Eq
+    PartialEq, Eq, Debug
 )]
 pub struct BookSideOrder{
     pub order_id: u64,
