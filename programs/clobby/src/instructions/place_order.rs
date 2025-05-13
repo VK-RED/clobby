@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{associated_token::get_associated_token_address, token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked, transfer_checked}};
+use anchor_spl::{associated_token::{get_associated_token_address_with_program_id}, token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked}};
 
 use crate::{errors::ClobbyProgramError, state::{BookSide, BookSideOrder, EventParams, EventType, Market, MarketEvents, Side, UserBalance}};
 
@@ -60,14 +60,20 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
         }
     }
 
-    let expected_token_vault = get_associated_token_address(
+    let expected_token_vault = get_associated_token_address_with_program_id(
         &market.market_authority,
-        &accounts.token_to_trade.key()
+        &accounts.token_to_trade.key(),
+        &*accounts.token_program.key,
     );
 
     require_keys_eq!(expected_token_vault.key(), accounts.token_vault.key());
 
     for opposing_order in opposing_side.orders.iter(){
+
+        if opposing_order.order_id == 0 {
+            msg!("No Orders to Match further");
+            break;
+        }
 
         if limit == 0 {
             msg!("Max order limit reached!");
@@ -120,7 +126,7 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
     // apply the changes to the opposing_order acccounts
     // check if the remaining_order_amount > 0 then add it in orderbook
     for (index, (order_id, total_quote_amount)) in orders_to_delete.iter().enumerate() {
-        let mut matched_order = opposing_side.orders[index];
+        let matched_order = &mut opposing_side.orders[index];
 
         // to match the makers
         market_events.add_event(EventParams{
@@ -145,7 +151,7 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
 
     for (index, order) in orders_to_edit.iter().enumerate() {
         let order_idx = full_orders_matched + index;
-        let mut partial_matched_order = opposing_side.orders[order_idx];
+        let partial_matched_order = &mut opposing_side.orders[order_idx];
 
         if partial_matched_order.order_id == order.order_id {
             partial_matched_order.base_amount = order.base_amount_to_set;
@@ -179,6 +185,8 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
     }
 
     opposing_side.order_count -= orders_matched as u64;
+    market.total_orders += 1;
+
 
     if remaining_order_amount == 0 {
         msg!("successfully executed orders without sitting on orderbook !");
@@ -212,8 +220,6 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
 
             taker_side.order_count-=1;
         }
-
-        market.total_orders += 1;
 
         let order_id = market.total_orders;
 
@@ -274,10 +280,11 @@ pub struct PlaceOrder<'info>{
     pub user_balance_account: Account<'info, UserBalance>,
 
     #[account(
-        has_one = bids, 
-        has_one = asks,
-        has_one = market_events,
-        has_one = market_authority,
+        mut,
+        constraint = bids.key() == market.bids.key(),
+        constraint = asks.key() == market.asks.key(),
+        constraint = market_events.key() == market.market_events.key(),
+        constraint = market_authority.key() == market.market_authority.key(),
     )]
     pub market: Box<Account<'info, Market>>,
 
@@ -308,6 +315,7 @@ pub struct PlaceOrder<'info>{
     #[account(
         mut,
         token::authority = market_authority,
+        token::mint = token_to_trade,
     )]
     pub token_vault: InterfaceAccount<'info, TokenAccount>,
 
