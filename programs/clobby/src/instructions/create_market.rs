@@ -19,8 +19,10 @@ pub fn create_market(ctx: Context<CreateMarket>, args:CreateMarketArgs) -> Resul
     market.quote_token_vault = accounts.quote_token_vault.key();
     market.name = args.name;
     market.base_lot_size = args.base_lot_size;
+    market.market_authority = accounts.market_authority.key();
+    market.market_events = accounts.market_events.key();
     market.market_authority_bump = ctx.bumps.market_authority;
-    market.total_orders = 0;
+    market.total_orders = 0;    
 
     msg!("Market Account has been created Successfully!");
 
@@ -49,6 +51,9 @@ pub struct CreateMarket<'info> {
         bump
     )]
     market_authority: UncheckedAccount<'info>,
+
+    ///CHECK: market_events will be initialized later
+    market_events: UncheckedAccount<'info>,
 
     /// CHECK: The bids acccount will be created in create_bookside instruction
     bids: UncheckedAccount<'info>,
