@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{token_interface::{TokenAccount, TokenInterface, Mint}};
 
 use crate::state::{Market, MarketEvents, UserBalance, Side, EventType};
 
@@ -14,6 +13,12 @@ pub fn consume_events(ctx:Context<ConsumeEvents>) -> Result<()> {
     let mut consumed_count: usize = 0;
 
     for event in market_events.events.iter_mut(){
+
+        if event.id == 0 && event.order_id == 0 {
+            msg!("no events left to consume!");
+            break;
+        }
+
         if consumed_count == MAX_EVENTS_TO_CONSUME {
             msg!("maximum limit reached");
             break;
@@ -68,12 +73,14 @@ pub fn consume_events(ctx:Context<ConsumeEvents>) -> Result<()> {
         
     }
 
-    for i in consumed_count..market_events.events_to_process as usize{
-        let j = i - consumed_count;
-        market_events.events.swap(i, j);
+    if consumed_count > 0 {
+        for i in consumed_count..market_events.events_to_process as usize{
+            let j = i - consumed_count;
+            market_events.events.swap(i, j);
+        }
+    
+        market_events.events_to_process -= consumed_count as u64;
     }
-
-    market_events.events_to_process -= consumed_count as u64;
     
     msg!("successfully consumed {} events", consumed_count);
 
@@ -106,33 +113,4 @@ pub struct ConsumeEvents<'info>{
         constraint = market.market_events.key() == market_events.key(),
     )]
     pub market_events: AccountLoader<'info, MarketEvents>,
-
-    #[account(
-        constraint = market.base_token.key() == base_token.key(),
-    )]
-    pub base_token: InterfaceAccount<'info, Mint>,
-
-    #[account(
-        constraint = market.quote_token.key() == quote_token.key(),
-    )]
-    pub quote_token: InterfaceAccount<'info, Mint>,
-
-    #[account(
-        mut, 
-        associated_token::mint = base_token,
-        associated_token::authority = market_authority,
-        constraint = base_token_vault.key() == market.base_token_vault.key()
-    )]
-    pub base_token_vault: InterfaceAccount<'info, TokenAccount>,
-
-    #[account(
-        mut, 
-        associated_token::mint = quote_token,
-        associated_token::authority = market_authority,
-        constraint = quote_token_vault.key() == market.quote_token_vault.key()
-    )]
-    pub quote_token_vault: InterfaceAccount<'info, TokenAccount>,
-
-    pub token_program: Interface<'info, TokenInterface>,
-
 }
