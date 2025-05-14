@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use crate::errors::ClobbyProgramError;
+
 use super::Side;
 
 #[derive(AnchorDeserialize, AnchorSerialize, Clone, InitSpace)]
@@ -10,6 +12,7 @@ pub enum EventType{
 
 #[zero_copy]
 pub struct Event{
+    pub id: u64,
     pub order_id: u64,
     pub base_amount: u64,
     pub quote_amount: u64,
@@ -22,6 +25,7 @@ pub struct Event{
 pub struct MarketEvents{
     pub market: Pubkey,
     pub events_to_process: u64,
+    pub total_events_count: u64,
     pub events: [Event; 512],
 }
 
@@ -32,6 +36,47 @@ pub struct EventParams{
     pub event_type: EventType,
     pub base_amount: u64,
     pub quote_amount: u64
+}
+
+impl Event {
+    pub fn get_side_in_enum(&self) -> Result<Side> {
+
+        match self.side {
+            0 => {
+                Ok(Side::Bid)
+            },
+            1 => {
+                Ok(Side::Ask)
+            },
+            _ => {
+                err!(ClobbyProgramError::InvalidBookSide)
+            }
+        }
+    }
+
+    pub fn get_event_in_enum(&self) -> Result<EventType> {
+        match self.event_type {
+            0 => {
+                Ok(EventType::Fill)
+            },
+            1 => {
+                Ok(EventType::Out)
+            }
+            _ => {
+                err!(ClobbyProgramError::InvalidEventType)
+            }
+        }
+    }
+
+    pub fn remove(&mut self, market:Pubkey){
+        self.base_amount =  0;
+        self.quote_amount = 0;
+        self.maker = market;
+        self.order_id = 0;
+        self.event_type = 0;
+        self.side = 0;
+        self.id = 0;
+    }
 }
 
 impl MarketEvents {
@@ -50,16 +95,20 @@ impl MarketEvents {
             Side::Ask => 1,
         };
 
+        let event_id = self.total_events_count+1;
+
         self.events[index] = Event{
             base_amount: event.base_amount,
             quote_amount: event.quote_amount,
             maker: event.maker,
-            order_id: event.order_id,
+            order_id: event_id,
+            id: self.total_events_count+1,
             event_type,
             side: order_side,
         };
 
         self.events_to_process+=1;
+        self.total_events_count+=1;
     }
 
     pub fn can_add_event(&self, events_to_add:usize) -> bool{
@@ -68,16 +117,4 @@ impl MarketEvents {
 
     }
 
-    // TODO: FIX
-    pub fn remove_event(&mut self, index:usize){
-
-        self.events[index] = Event{
-            base_amount: 0,
-            quote_amount: 0,
-            maker: self.market,
-            order_id: 0,
-            event_type:0,
-            side: 0,
-        };
-    }
 }
