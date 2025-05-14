@@ -39,6 +39,18 @@ pub mod clobby {
         Ok(())
     }
 
+    /// Whenever the taker is matched against the maker, the taker does not know the
+    /// maker's balance account during matching. So whenever a match happens we record 
+    /// it in market_events. Later when consumed_events ins is called, the makers balance
+    /// gets increased. 
+    /// 
+    /// NOTE: We only increase the balance, and not transfer the tokens, transferring occurs in
+    /// settle_user_balance ins
+    pub fn consume_events(ctx:Context<ConsumeEvents>) -> Result<()>{
+        instructions::consume_events(ctx)?;
+        Ok(())
+    }
+
     /// This is specially useful when matching the orders, we can directly increase or decrease the tokens
     /// we can settle the final amount, when the user requests for it.
     pub fn create_user_balance_account(ctx:Context<CreateUserBalanceAccount>) -> Result<()> {
