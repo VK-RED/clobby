@@ -27,7 +27,7 @@ pub fn cancel_order(ctx:Context<CancelOrder>, args: CancelOrderArgs) -> Result<(
     let (target_index, target_order) = bookside.orders
     .iter_mut()
     .enumerate()
-    .find(|(_index, order)| order.order_id == args.market_id)
+    .find(|(_index, order)| order.order_id == args.order_id)
     .ok_or(ClobbyProgramError::InvalidOrderId)?;
 
     // Check only the order_authority can cancel !
@@ -112,6 +112,6 @@ pub struct CancelOrder<'info>{
 
 #[derive(AnchorDeserialize, AnchorSerialize)]
 pub struct CancelOrderArgs{
-    pub market_id: u64,
+    pub order_id: u64,
     pub side: Side,
 }
