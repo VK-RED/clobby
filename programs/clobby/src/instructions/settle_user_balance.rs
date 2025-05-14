@@ -25,7 +25,7 @@ pub fn settle_user_balance(ctx:Context<SettleUserBalance>) -> Result<()>{
             mint: accounts.base_token.to_account_info(),
             from: accounts.base_vault_account.to_account_info(),
             to: accounts.user_base_token_account.to_account_info(),
-            authority: accounts.base_vault_account.to_account_info(),
+            authority: accounts.market_authority.to_account_info(),
         };
 
         let cpi_context = CpiContext::new(cpi_program.clone(), base_cpi_accounts).with_signer(signer_seeds);
@@ -43,7 +43,7 @@ pub fn settle_user_balance(ctx:Context<SettleUserBalance>) -> Result<()>{
             mint: accounts.quote_token.to_account_info(),
             from: accounts.quote_vault_account.to_account_info(),
             to: accounts.user_quote_token_account.to_account_info(),
-            authority: accounts.quote_vault_account.to_account_info(),
+            authority: accounts.market_authority.to_account_info(),
         };
 
         let cpi_context = CpiContext::new(cpi_program, quote_cpi_accounts).with_signer(signer_seeds);
@@ -71,8 +71,18 @@ pub struct SettleUserBalance<'info>{
     #[account(
         has_one = base_token,
         has_one = quote_token,
+        has_one = market_authority,
     )]
     pub market: Account<'info, Market>,
+
+    /// CHECK: PDA of the market account, that can
+    /// transfer tokens,
+    #[account(
+        mut,
+        seeds=[b"market", market.key().as_ref()],
+        bump=market.market_authority_bump,
+    )]
+    pub market_authority: UncheckedAccount<'info>,
 
     pub base_token: InterfaceAccount<'info, Mint>,
     pub quote_token: InterfaceAccount<'info, Mint>,
