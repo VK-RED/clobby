@@ -23,7 +23,7 @@ pub fn create_market(ctx: Context<CreateMarket>, args:CreateMarketArgs) -> Resul
     market.market_events = accounts.market_events.key();
     market.market_authority_bump = ctx.bumps.market_authority;
     market.total_orders = 0;    
-
+    market.consume_events_authority = args.consume_events_authority;
     msg!("Market Account has been created Successfully!");
 
     Ok(())
@@ -93,4 +93,5 @@ pub struct CreateMarket<'info> {
 pub struct CreateMarketArgs{
     pub name: String, 
     pub base_lot_size: u64,
+    pub consume_events_authority: Pubkey,
 }

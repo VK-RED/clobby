@@ -9,6 +9,7 @@ pub struct Market{
     pub market_event_bump: u8,
     pub base_token: Pubkey, 
     pub quote_token: Pubkey,
+    pub consume_events_authority: Pubkey,
     /// Should be in the power of 10's, 
     /// if 1 base_lot_size = 1000, then buying 10 base lots, will be equal to
     /// 1_000_000 native base tokens in LAMPORTS    
