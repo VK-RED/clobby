@@ -46,7 +46,7 @@ pub mod clobby {
     /// 
     /// NOTE: We only increase the balance, and not transfer the tokens, transferring occurs in
     /// settle_user_balance ins
-    pub fn consume_events(ctx:Context<ConsumeEvents>) -> Result<()>{
+    pub fn consume_events<'a, 'b, 'c, 'info>(ctx:Context<'a, 'b, 'c, 'info, ConsumeEvents<'info>>) -> Result<()> where 'c : 'info {
         instructions::consume_events(ctx)?;
         Ok(())
     }

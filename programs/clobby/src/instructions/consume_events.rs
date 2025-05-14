@@ -4,7 +4,7 @@ use crate::state::{Market, MarketEvents, UserBalance, Side, EventType};
 
 const MAX_EVENTS_TO_CONSUME:usize = 7;
 
-pub fn consume_events(ctx:Context<ConsumeEvents>) -> Result<()> {
+pub fn consume_events<'a, 'b, 'c, 'info>(ctx:Context<'a, 'b, 'c, 'info, ConsumeEvents<'info>>) -> Result<()> where 'c : 'info {
     let accounts = ctx.accounts;
     // makers balance account should be passed here
     let remaining_accounts = ctx.remaining_accounts;
@@ -39,13 +39,15 @@ pub fn consume_events(ctx:Context<ConsumeEvents>) -> Result<()> {
 
         // else case will not occur most probably
         if let Some(account_info) = maker_balance_acc {
-            let mut maker_balance_account = UserBalance::try_from_slice(&mut account_info.data.borrow_mut())?;
+            let mut maker_balance_account = Account::<UserBalance>::try_from(account_info)?;
 
             match event.get_event_in_enum()? {
                 EventType::Fill => {
                     match event.get_side_in_enum()? {
                         Side::Bid => {
+                            msg!("BASE BEFORE AMOUNT : {}", maker_balance_account.base_amount);
                             maker_balance_account.base_amount += event.base_amount;
+                            msg!("BASE AFTER AMOUNT : {}", maker_balance_account.base_amount);
                         },
                         Side::Ask => {
                             maker_balance_account.quote_amount += event.quote_amount;
@@ -63,6 +65,8 @@ pub fn consume_events(ctx:Context<ConsumeEvents>) -> Result<()> {
                     }
                 }
             }
+
+            maker_balance_account.exit(ctx.program_id)?;
             consumed = true;
             consumed_count+=1;
         }
