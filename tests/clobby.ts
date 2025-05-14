@@ -34,18 +34,18 @@ describe("clobby", () => {
     return marketAuthority;
   }
 
-  const getBalanceAccount = () => {
+  const getBalanceAccount = (userKey: anchor.web3.PublicKey) => {
     const [balanceAccount] = anchor.web3.PublicKey.findProgramAddressSync(
       [
         Buffer.from("balance"),
-        keypair.publicKey.toBuffer()
+        userKey.toBuffer()
       ],
       PROGRAM_ID,
     );
     return balanceAccount;
   }
 
-  const userBalanceAccount = getBalanceAccount();
+  const userBalanceAccount = getBalanceAccount(keypair.publicKey);
   const marketAuthority = getMarketAuthority();
 
   const baseTokenVault = getAssociatedTokenAddressSync(baseToken.publicKey, marketAuthority, true, TOKEN_2022_PROGRAM_ID);
@@ -228,6 +228,7 @@ describe("clobby", () => {
     .createMarket({
       name:"SOL_USDC",
       baseLotSize: new anchor.BN(1000),
+      consumeEventsAuthority: keypair.publicKey,
     })
     .accounts({
       market: market.publicKey.toBase58(),
@@ -387,4 +388,90 @@ describe("clobby", () => {
 
   })
 
+  it("Should be able to cancel an order !", async() => {
+
+    const bidsAccount = await program.account.bookSide.fetch(bidAccount.publicKey);
+
+    let orderId: anchor.BN;
+
+    for (let i = 0; i < bidsAccount.orderCount.toNumber(); i++) {
+      if (bidsAccount.orders[i].orderAuthority.toBase58() === keypair.publicKey.toBase58()) {
+        orderId = bidsAccount.orders[i].orderId;
+        break;
+      }
+    }
+
+    console.log("Cancelling order with id", orderId.toNumber());
+
+    const cancelOrderSig = await program.methods
+    .cancelOrder({
+      orderId,
+      side: {bid:{}},
+    })
+    .accounts({
+      user: keypair.publicKey.toBase58(),
+      booksideAccount: bidAccount.publicKey.toBase58(),
+      market: market.publicKey.toBase58(),
+
+    })
+    .rpc({commitment: "confirmed"});
+
+    console.log("Cancel Order Signature is : ", cancelOrderSig);
+
+  })
+
+
+  it("Should be able to consume events", async() => {
+
+    const balanceBefore = await program
+    .account
+    .userBalance
+    .fetch(userBalanceAccount);
+
+    console.log("Base Amount before consume events", balanceBefore.baseAmount.toNumber());
+    console.log("Quote Amount before consume events", balanceBefore.quoteAmount.toNumber());
+
+    const eventsBefore = await program.account.marketEvents.fetch(marketEvent.publicKey);
+
+    const remainingAccounts : {
+      pubkey:anchor.web3.PublicKey,
+      isSigner: boolean,
+      isWritable: boolean
+    }[] = [];
+
+    for(let i = 0; i < eventsBefore.eventsToProcess.toNumber(); i++) {
+      let event = eventsBefore.events[i];
+      const balanceAccount = getBalanceAccount(event.maker);
+      remainingAccounts.push({
+        pubkey: balanceAccount,
+        isSigner: false,
+        isWritable: true
+      });
+    }
+
+    const consumeEventsSig = await program.methods
+    .consumeEvents()
+    .accounts({
+      market: market.publicKey.toBase58(),
+      consumeEventsAuthority: keypair.publicKey.toBase58(),
+      marketEvents: marketEvent.publicKey.toBase58(),
+    })
+    .remainingAccounts(remainingAccounts)
+    .rpc({commitment: "confirmed"});
+
+    console.log("Consume Events Signature is : ", consumeEventsSig);
+
+    const balanceAfter = await program
+    .account
+    .userBalance
+    .fetch(userBalanceAccount);
+
+    console.log("Base Amount after consume events", balanceAfter.baseAmount.toNumber());
+    console.log("Quote Amount after consume events", balanceAfter.quoteAmount.toNumber());
+
+  })
+
+  
+
 });
+
