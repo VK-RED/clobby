@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::errors::ClobbyProgramError;
 
-#[derive(AnchorDeserialize, AnchorSerialize, PartialEq, Eq, Clone, InitSpace, Copy)]
+#[derive(AnchorDeserialize, AnchorSerialize, PartialEq, Eq, Clone, InitSpace, Copy, Debug)]
 pub enum Side{
     Bid, 
     Ask

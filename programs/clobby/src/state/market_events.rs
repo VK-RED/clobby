@@ -4,7 +4,7 @@ use crate::errors::ClobbyProgramError;
 
 use super::Side;
 
-#[derive(AnchorDeserialize, AnchorSerialize, Clone, InitSpace)]
+#[derive(AnchorDeserialize, AnchorSerialize, Clone, InitSpace, Debug)]
 pub enum EventType{
     Fill,
     Out,
@@ -29,6 +29,7 @@ pub struct MarketEvents{
     pub events: [Event; 512],
 }
 
+#[derive(Debug)]
 pub struct EventParams{
     pub order_id: u64,
     pub maker: Pubkey,
@@ -101,8 +102,8 @@ impl MarketEvents {
             base_amount: event.base_amount,
             quote_amount: event.quote_amount,
             maker: event.maker,
-            order_id: event_id,
-            id: self.total_events_count+1,
+            order_id: event.order_id,
+            id: event_id,
             event_type,
             side: order_side,
         };
