@@ -271,9 +271,8 @@ pub struct PlaceOrder<'info>{
     pub user: Signer<'info>,
 
     #[account(
-        init_if_needed,
-        payer = user,
-        space = 8 + UserBalance::INIT_SPACE,
+        constraint = user.key() == user_balance_account.user.key(),
+        constraint = user_balance_account.market.key() == market.key(),
         seeds = [b"balance", user.key().as_ref()],
         bump,
     )]
