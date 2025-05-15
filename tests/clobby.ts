@@ -277,6 +277,8 @@ describe("clobby", () => {
 
   it("Should place a Bid order and sit on the orderbook !", async () => {
 
+    const start = Date.now();
+
     const sig = await program.methods
     .placeOrder({
       baseLots: 2, // Buy two base lots
@@ -297,11 +299,18 @@ describe("clobby", () => {
     })
     .rpc({commitment: "confirmed"});
 
+    const now = Date.now();
+
+    const timeTaken = now - start;
+    console.log(`Time taken to place order is ${timeTaken} ms`);
+
+
     console.log("Bid Order Signature is : ", sig);
   });
 
   it("Should match completely!", async() => {
 
+    const start = Date.now();
     const ix1 = await program.methods
     .placeOrder({
       baseLots: 2, // Buy two base lots
@@ -350,6 +359,10 @@ describe("clobby", () => {
     );
 
     const sig = await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair], {commitment: "confirmed", skipPreflight: true});
+    const now = Date.now();
+
+    const timeTaken = now - start;
+    console.log(`Time taken to Match order is ${timeTaken} ms`);
     console.log("Complete Match Signature is : ", sig);
 
 
