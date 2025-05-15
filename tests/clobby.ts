@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Clobby } from "../target/types/clobby";
-import {createMint, getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID} from "@solana/spl-token";
+import {createMint, getAccount, getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID} from "@solana/spl-token";
 
 describe("clobby", () => {
   // Configure the client to use the local cluster.
@@ -255,6 +255,26 @@ describe("clobby", () => {
     console.log("Create Market Signature is : ", sig);
   });
 
+  it("Should create User Balance Account !", async () => {
+
+    const userBalanceAccount = getBalanceAccount(keypair.publicKey);
+
+    const createBalanceSig = await program.methods
+    .createUserBalanceAccount()
+    .accounts({
+      user: keypair.publicKey.toBase58(),
+      market: market.publicKey.toBase58(),
+    })
+    .rpc({commitment: "confirmed"});
+
+    console.log("Create Balance Account Signature is : ", createBalanceSig);
+
+    const balanceAccount = await program.account.userBalance.fetch(userBalanceAccount);
+    console.log("Balance Account", balanceAccount);
+
+  });
+
+
   it("Should place a Bid order and sit on the orderbook !", async () => {
 
     const sig = await program.methods
@@ -471,7 +491,32 @@ describe("clobby", () => {
 
   })
 
+  it("Should be able to settle user balance !", async() => {
   
+    const beforeBaseAccount = await getAccount(connection, userBaseTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const beforeQuoteAccount = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
 
+    console.log("Before Base Account Balance", Number(beforeBaseAccount.amount));
+    console.log("Before Quote Account Balance", Number(beforeQuoteAccount.amount));
+
+    const settleBalanceSig = await program.methods
+    .settleUserBalance()
+    .accounts({
+      market: market.publicKey.toBase58(),
+      userBalanceAccount: userBalanceAccount.toBase58(),
+      userBaseTokenAccount: userBaseTokenAccount.toBase58(),
+      userQuoteTokenAccount: userQuoteTokenAccount.toBase58(),
+      tokenProgam: TOKEN_2022_PROGRAM_ID,
+    })
+    .rpc({commitment: "confirmed"});
+
+    console.log("Settle Balance Signature is : ", settleBalanceSig);
+
+    const afterBaseAccount = await getAccount(connection, userBaseTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const afterQuoteAccount = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+
+    console.log("After Base Account Balance", Number(afterBaseAccount.amount));
+    console.log("After Quote Account Balance", Number(afterQuoteAccount.amount));
+  })
 });
 
