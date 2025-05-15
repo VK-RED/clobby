@@ -95,26 +95,32 @@ pub struct SettleUserBalance<'info>{
     pub user_balance_account: Account<'info, UserBalance>,
 
     #[account(
+        mut,
         token::mint = base_token.key(),
         token::authority = user.key(),
     )]
     pub user_base_token_account: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
+        mut,
         token::mint = quote_token.key(),
         token::authority = user.key(),
     )]
     pub user_quote_token_account: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
+        mut,
         associated_token::mint = base_token.key(),
         associated_token::authority = market.market_authority.key(),
+        associated_token::token_program = token_progam,
     )]
     pub base_vault_account: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
+        mut,
         associated_token::mint = quote_token.key(),
         associated_token::authority = market.market_authority.key(),
+        associated_token::token_program = token_progam,
     )]
 
     pub quote_vault_account: InterfaceAccount<'info, TokenAccount>,
