@@ -1,6 +1,6 @@
 # CLOBBY
 
-Clobby is an Onchain Orderbook built on Solana.
+Clobby is an Onchain Orderbook built on Solana.(Click on each image to view in full resolution)
 
 ![Image](https://github.com/user-attachments/assets/85ac2e80-5662-48ec-9619-e6686bafecb7)
 ![Image](https://github.com/user-attachments/assets/09a92651-3138-4e1d-8328-d04bd9f5417d)
