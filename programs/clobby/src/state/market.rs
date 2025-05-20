@@ -5,8 +5,7 @@ use anchor_lang::prelude::*;
 pub struct Market{
     pub market_authority: Pubkey, // PDA THAT HAS THE AUTHORITY TO SEND THE TOKENS TO THE USER
     pub market_authority_bump: u8,
-    pub market_events: Pubkey, // PDA THAT STORES ALL THE FILL AND OUT EVENTS, 
-    pub market_event_bump: u8,
+    pub market_events: Pubkey, // ACCOUNNT THAT STORES ALL THE FILL AND OUT EVENTS, 
     pub base_token: Pubkey, 
     pub quote_token: Pubkey,
     pub consume_events_authority: Pubkey,
