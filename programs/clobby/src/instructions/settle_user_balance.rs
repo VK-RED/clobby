@@ -32,7 +32,7 @@ pub fn settle_user_balance(ctx:Context<SettleUserBalance>) -> Result<()>{
 
         token_interface::transfer_checked(cpi_context, balance_account.base_amount, accounts.base_token.decimals)?;
 
-        balance_account.reset_balance(ResetSide::Quote);
+        balance_account.reset_balance(ResetSide::Base);
     }
     else{
         msg!("No base token to settle");
