@@ -17,6 +17,7 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
 
     let market = &mut accounts.market;
     let mut market_events = accounts.market_events.load_mut()?;
+    let user_balance_account = &mut accounts.user_balance_account;
     let mut asks = accounts.asks.load_mut()?;
     let mut bids = accounts.bids.load_mut()?;
 
@@ -40,10 +41,10 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
 
             // on the bidding side, quote token is used to trade
             require_keys_eq!(accounts.token_to_trade.key(), market.quote_token);
-            require!(accounts.user_token_account.amount >= args.quote_amount, ClobbyProgramError::InSufficientBalance);
+            require!(accounts.user_token_account.amount >= args.quote_amount * args.base_lots as u64, ClobbyProgramError::InSufficientBalance);
 
 
-            transfer_token_amount = args.quote_amount;
+            transfer_token_amount = args.quote_amount * u64::from(args.base_lots);
             taker_side = &mut bids;
             opposing_side = &mut asks;
 
@@ -52,7 +53,7 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
 
             // on the asking side, base token is used to trade
             require_keys_eq!(accounts.token_to_trade.key(), market.base_token);
-            require!(accounts.user_token_account.amount >= base_amount, ClobbyProgramError::InSufficientBalance);
+            require!(accounts.user_token_account.amount >= base_amount * args.base_lots as u64, ClobbyProgramError::InSufficientBalance);
 
             transfer_token_amount = base_amount;
             taker_side = &mut asks;
@@ -104,6 +105,18 @@ pub fn place_order(ctx:Context<PlaceOrder>, args:PlaceOrderArgs) -> Result<()> {
         else{
             let base_amount_to_set = opposing_order.base_amount - base_amount_eaten;
             orders_to_edit.push(EditOrders { order_id: opposing_order.order_id, base_amount_to_set,  total_quote_amount});
+        }
+
+        match taker_side.get_side_in_enum()? {
+            Side::Bid => {
+                user_balance_account.base_amount += base_amount_eaten;
+                msg!("user balance account in base: {}", user_balance_account.base_amount);
+            },
+            Side::Ask => {
+                user_balance_account.quote_amount += total_quote_amount;
+                msg!("total quote amount is : {}", total_quote_amount);
+                msg!("user balance account in quote: {}", user_balance_account.quote_amount);
+            }
         }
 
         remaining_order_amount -= base_amount_eaten;
@@ -271,6 +284,7 @@ pub struct PlaceOrder<'info>{
     pub user: Signer<'info>,
 
     #[account(
+        mut,
         constraint = user.key() == user_balance_account.user.key(),
         constraint = user_balance_account.market.key() == market.key(),
         seeds = [b"balance", user.key().as_ref()],
