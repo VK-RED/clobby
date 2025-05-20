@@ -3,6 +3,7 @@ import { Program } from "@coral-xyz/anchor";
 import { Clobby } from "../target/types/clobby";
 import {createMint, getAccount, getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID} from "@solana/spl-token";
 import { expect } from "chai";
+import { getLogs } from "@solana-developers/helpers";
 
 describe("clobby", () => {
   // Configure the client to use the local cluster.
@@ -93,7 +94,9 @@ describe("clobby", () => {
     const sig = await connection.sendTransaction(tx1, [keypair, bidAccount, askAccount]);
     await connection.confirmTransaction(sig, "confirmed");
     
+    console.log("-------------------------------------------------------------------------------------------------")
     console.log("created bids and asks accounts", bidAccount.publicKey.toBase58(), askAccount.publicKey.toBase58());
+    console.log("-------------------------------------------------------------------------------------------------")
 
     const tx2 = new anchor.web3.Transaction();
 
@@ -192,16 +195,16 @@ describe("clobby", () => {
         TOKEN_2022_PROGRAM_ID
       )
     ]) 
-  
+    
+    console.log("--------------------------------------------------------------------------------");
     console.log("Base Token : ", baseToken.publicKey.toBase58());
     console.log("Quote Token : ", quoteToken.publicKey.toBase58());
     console.log("Market Account", market.publicKey.toBase58());
     console.log("Market Event Account", marketEvent.publicKey.toBase58());
     console.log("Market Authority Account", marketAuthority.toBase58());
-    
     console.log("Base Token Vault : ", baseTokenVault.toBase58());
     console.log("Quote Token Vault : ", quoteTokenVault.toBase58());
-
+    console.log("--------------------------------------------------------------------------------");
 
     const {bidAccount, askAccount} = await initOrderSideAndEventAccounts();
 
@@ -252,9 +255,8 @@ describe("clobby", () => {
       createBooksideAccountsIx
     );
 
-    const sig = await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair, market], {commitment: "confirmed", skipPreflight: true});
-    console.log("Create Market Signature is : ", sig);
-
+    await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair, market], {commitment: "confirmed", skipPreflight: true});
+    
     const marketAcc = await program.account.market.fetch(market.publicKey);
 
     // create market tests
@@ -303,7 +305,7 @@ describe("clobby", () => {
 
     const userBalanceAccount = getBalanceAccount(keypair.publicKey);
 
-    const createBalanceSig = await program.methods
+    await program.methods
     .createUserBalanceAccount()
     .accounts({
       user: keypair.publicKey.toBase58(),
@@ -311,9 +313,8 @@ describe("clobby", () => {
     })
     .rpc({commitment: "confirmed"});
 
-    console.log("Create Balance Account Signature is : ", createBalanceSig);
-
     const balanceAccount = await program.account.userBalance.fetch(userBalanceAccount);
+
     expect(balanceAccount.baseAmount.toNumber()).to.equal(0);
     expect(balanceAccount.quoteAmount.toNumber()).to.equal(0);
     expect(balanceAccount.user.toBase58()).to.equal(keypair.publicKey.toBase58());
@@ -337,7 +338,7 @@ describe("clobby", () => {
 
     const start = Date.now();
 
-    const sig = await program.methods
+    await program.methods
     .placeOrder({
       baseLots: 2, // Buy two base lots
       ioc: false, // Non-immediate-or-cancel order
@@ -365,8 +366,10 @@ describe("clobby", () => {
     const userQuoteTokenAccountAfter = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
     const marketQuoteTokenVaultAfter = await getAccount(connection, quoteTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
 
-    expect(userQuoteTokenAccountAfter.amount).to.equal(userQuoteTokenAccountBefore.amount - BigInt(1000));
-    expect(marketQuoteTokenVaultAfter.amount).to.equal(marketQuoteTokenVaultBefore.amount + BigInt(1000));
+    const transferAmount = BigInt(1000) * BigInt(2);
+
+    expect(userQuoteTokenAccountAfter.amount).to.equal(userQuoteTokenAccountBefore.amount - transferAmount);
+    expect(marketQuoteTokenVaultAfter.amount).to.equal(marketQuoteTokenVaultBefore.amount + transferAmount);
 
     const bidsAcc = await program.account.bookSide.fetch(bidAccount.publicKey);
     const marketAcc = await program.account.market.fetch(market.publicKey);
@@ -377,11 +380,27 @@ describe("clobby", () => {
     expect(bidsAcc.orders[0].baseAmount.toNumber()).to.equal(marketAcc.baseLotSize.toNumber() * 2);
     expect(bidsAcc.orders[0].quoteAmount.toNumber()).to.equal(1000);
     expect(bidsAcc.orders[0].orderAuthority.toBase58()).to.equal(keypair.publicKey.toBase58());
-
-    console.log("Bid Order Signature is : ", sig);
   });
 
   it("Should match completely!", async() => {
+
+    /*
+      check appropriate user base and quote token accounts are deducted and market base and quote token accounts are credited
+      check taker balance account is credited correctly
+      check the bids with orderId = 1 is removed from the bids
+      check the bids with orderId = 2 is added to the bids
+      check the asks does not sit on the asks account
+      check the market total order count is 3
+      check the fill event is added for the order with orderId = 0
+    */
+
+    const userBaseTokenAccountBefore = await getAccount(connection, userBaseTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const userQuoteTokenAccountBefore = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+
+    const marketBaseTokenVaultBefore = await getAccount(connection, baseTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+    const marketQuoteTokenVaultBefore = await getAccount(connection, quoteTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+
+    const transferAmount = BigInt(1000) * BigInt(2);
 
     const start = Date.now();
     const ix1 = await program.methods
@@ -431,20 +450,59 @@ describe("clobby", () => {
       ix2
     );
 
-    const sig = await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair], {commitment: "confirmed", skipPreflight: true});
+    await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair], {commitment: "confirmed", skipPreflight: true});
     const now = Date.now();
+
+    const userBaseTokenAccountAfter = await getAccount(connection, userBaseTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const userQuoteTokenAccountAfter = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const marketBaseTokenVaultAfter = await getAccount(connection, baseTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+    const marketQuoteTokenVaultAfter = await getAccount(connection, quoteTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+
+    const userBalanceAcc = await program.account.userBalance.fetch(userBalanceAccount);
+    const bidsAcc = await program.account.bookSide.fetch(bidAccount.publicKey);
+    const asksAcc = await program.account.bookSide.fetch(askAccount.publicKey);
+    const marketAcc = await program.account.market.fetch(market.publicKey);
+    const marketEventAcc = await program.account.marketEvents.fetch(marketEvent.publicKey);
+
+    expect(userBaseTokenAccountAfter.amount).to.equal(userBaseTokenAccountBefore.amount - transferAmount);
+    expect(marketBaseTokenVaultAfter.amount).to.equal(marketBaseTokenVaultBefore.amount + transferAmount);
+    expect(userQuoteTokenAccountAfter.amount).to.equal(userQuoteTokenAccountBefore.amount - transferAmount);
+    expect(marketQuoteTokenVaultAfter.amount).to.equal(marketQuoteTokenVaultBefore.amount + transferAmount);
+
+    expect(userBalanceAcc.quoteAmount.toNumber()).to.be.equal(1000*2);
+
+    expect(bidsAcc.orders[0].orderId.toNumber()).to.be.equal(2);
+    expect(bidsAcc.orders[0].quoteAmount.toNumber()).to.be.equal(1000);
+    expect(bidsAcc.orders[0].baseAmount.toNumber()).to.be.equal(marketAcc.baseLotSize.toNumber() * 2);
+
+    expect(asksAcc.orders[0].quoteAmount.toNumber()).to.be.equal(0);
+    expect(asksAcc.orders[0].baseAmount.toNumber()).to.be.equal(0);
+    expect(asksAcc.orders[0].orderId.toNumber()).to.be.equal(0);
+
+    expect(marketEventAcc.eventsToProcess.toNumber()).to.be.equal(1);
+    expect(marketEventAcc.totalEventsCount.toNumber()).to.be.equal(1);
+    expect(marketEventAcc.events[0].orderId.toNumber()).to.be.equal(1);
+    expect(marketEventAcc.events[0].side.toNumber()).to.be.equal(0);
+    expect(marketEventAcc.events[0].maker.toBase58()).to.be.equal(keypair.publicKey.toBase58());
+    expect(marketEventAcc.events[0].quoteAmount.toNumber()).to.be.equal(1000*2);
+    expect(marketEventAcc.events[0].baseAmount.toNumber()).to.be.equal(2 * marketAcc.baseLotSize.toNumber());
 
     const timeTaken = now - start;
     console.log(`Time taken to Match order is ${timeTaken} ms`);
-    console.log("Complete Match Signature is : ", sig);
-
-
   });
 
   it("Should match partially and sit on the orderbook", async () => {
+
+    const userBaseTokenAccountBefore = await getAccount(connection, userBaseTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const userQuoteTokenAccountBefore = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+
+    const marketBaseTokenVaultBefore = await getAccount(connection, baseTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+    const marketQuoteTokenVaultBefore = await getAccount(connection, quoteTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+    const userBalanceAccBefore = await program.account.userBalance.fetch(userBalanceAccount);
+
     const ix1 = await program.methods
     .placeOrder({
-      baseLots: 1, // Buy two base lots
+      baseLots: 2, // Buy two base lots
       ioc: false, // Non-immediate-or-cancel order
       quoteAmount: new anchor.BN(1000), // Buy 1000 quote tokens
       side: {bid:{}},
@@ -464,7 +522,7 @@ describe("clobby", () => {
 
     const ix2 = await program.methods
     .placeOrder({
-      baseLots: 2, // Sell two base lots
+      baseLots: 5, // Sell 5 base lots
       ioc: false, // Non-immediate-or-cancel order
       quoteAmount: new anchor.BN(1000), // Sell each at the price 1000 quote tokens
       side: {ask:{}},
@@ -489,40 +547,132 @@ describe("clobby", () => {
       ix2
     );
 
-    const sig = await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair], {commitment: "confirmed", skipPreflight: true});
-    console.log("PARTIAL ORDER SIG", sig);
+    await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair], {commitment: "confirmed", skipPreflight: true});
 
+    const userBaseTokenAccountAfter = await getAccount(connection, userBaseTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const userQuoteTokenAccountAfter = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const marketBaseTokenVaultAfter = await getAccount(connection, baseTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+    const marketQuoteTokenVaultAfter = await getAccount(connection, quoteTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+
+    const userBalanceAccAfter = await program.account.userBalance.fetch(userBalanceAccount);
+    const bidsAcc = await program.account.bookSide.fetch(bidAccount.publicKey);
+    const asksAcc = await program.account.bookSide.fetch(askAccount.publicKey);
+    const marketAcc = await program.account.market.fetch(market.publicKey);
+    const marketEventAcc = await program.account.marketEvents.fetch(marketEvent.publicKey);
+
+    const quoteAmountTransfer = 1000 * 2;
+    const baseAmountTransfer = marketAcc.baseLotSize.toNumber() * 5;
+
+    expect(userQuoteTokenAccountAfter.amount).to.equal(userQuoteTokenAccountBefore.amount - BigInt(quoteAmountTransfer));
+    expect(marketQuoteTokenVaultAfter.amount).to.equal(marketQuoteTokenVaultBefore.amount + BigInt(quoteAmountTransfer));
+    expect(userBaseTokenAccountAfter.amount).to.equal(userBaseTokenAccountBefore.amount - BigInt(baseAmountTransfer));
+    expect(marketBaseTokenVaultAfter.amount).to.equal(marketBaseTokenVaultBefore.amount + BigInt(baseAmountTransfer));
+
+    // as four orders are matched against at the price of 1000 quote tokens
+    expect(userBalanceAccAfter.quoteAmount.toNumber()).to.be.equal(userBalanceAccBefore.quoteAmount.toNumber() + 1000*4);
+
+    expect(bidsAcc.orders[0].orderId.toNumber()).to.be.equal(0);
+    expect(bidsAcc.orders[0].quoteAmount.toNumber()).to.be.equal(0);
+    expect(bidsAcc.orders[0].baseAmount.toNumber()).to.be.equal(0);
+
+    expect(asksAcc.orders[0].orderId.toNumber()).to.be.equal(5);
+    expect(asksAcc.orders[0].quoteAmount.toNumber()).to.be.equal(1000);
+    expect(asksAcc.orders[0].baseAmount.toNumber()).to.be.equal(1000);
+
+    expect(marketEventAcc.eventsToProcess.toNumber()).to.be.equal(3);
+    expect(marketEventAcc.totalEventsCount.toNumber()).to.be.equal(3);
+
+    expect(marketEventAcc.events[1].orderId.toNumber()).to.be.equal(2);
+    expect(marketEventAcc.events[1].side.toNumber()).to.be.equal(0);
+    expect(marketEventAcc.events[1].maker.toBase58()).to.be.equal(keypair.publicKey.toBase58());
+    expect(marketEventAcc.events[1].quoteAmount.toNumber()).to.be.equal(1000*2);
+    expect(marketEventAcc.events[1].baseAmount.toNumber()).to.be.equal(2 * marketAcc.baseLotSize.toNumber());
+
+    expect(marketEventAcc.events[2].orderId.toNumber()).to.be.equal(4);
+    expect(marketEventAcc.events[2].side.toNumber()).to.be.equal(0);
+    expect(marketEventAcc.events[2].maker.toBase58()).to.be.equal(keypair.publicKey.toBase58());
+    expect(marketEventAcc.events[2].quoteAmount.toNumber()).to.be.equal(1000*2);
+    expect(marketEventAcc.events[2].baseAmount.toNumber()).to.be.equal(2 * marketAcc.baseLotSize.toNumber());
+
+  })
+
+  it("Should be able to cancel an IOC order", async() => {
+    try {
+      await program.methods
+      .placeOrder({
+        baseLots: 5, // Buy two base lots
+        ioc: true, 
+        quoteAmount: new anchor.BN(500),
+        side: {bid:{}}// Buy 1000 quote tokens
+      })
+      .accounts({
+        user: keypair.publicKey.toBase58(),
+        userTokenAccount: userQuoteTokenAccount.toBase58(),
+        market: market.publicKey.toBase58(),
+        tokenToTrade: quoteToken.publicKey.toBase58(),
+        tokenVault: quoteTokenVault.toBase58(),
+        bids: bidAccount.publicKey.toBase58(),
+        asks: askAccount.publicKey.toBase58(),   
+        marketEvents: marketEvent.publicKey.toBase58(),
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+      })
+      .rpc({commitment: "confirmed"});
+    } catch (error) {
+      if(error instanceof anchor.AnchorError){
+        expect(error.error.errorCode.code).to.be.equal("OrderFilledPartially");
+        expect(error.error.errorCode.number).to.be.equal(6001);
+      }
+      else{
+        throw new Error("This should not have happened");
+      }
+    }
+      
   })
 
   it("Should be able to cancel an order !", async() => {
 
-    const bidsAccount = await program.account.bookSide.fetch(bidAccount.publicKey);
+    // as the asks will be sitting on the orderbook already
+    const asksAccount = await program.account.bookSide.fetch(askAccount.publicKey);
 
     let orderId: anchor.BN;
 
-    for (let i = 0; i < bidsAccount.orderCount.toNumber(); i++) {
-      if (bidsAccount.orders[i].orderAuthority.toBase58() === keypair.publicKey.toBase58()) {
-        orderId = bidsAccount.orders[i].orderId;
+    for (let i = 0; i < asksAccount.orderCount.toNumber(); i++) {
+      if (asksAccount.orders[i].orderAuthority.toBase58() === keypair.publicKey.toBase58()) {
+        orderId = asksAccount.orders[i].orderId;
         break;
       }
     }
 
-    console.log("Cancelling order with id", orderId.toNumber());
-
-    const cancelOrderSig = await program.methods
+    await program.methods
     .cancelOrder({
       orderId,
-      side: {bid:{}},
+      side: {ask:{}},
     })
     .accounts({
       user: keypair.publicKey.toBase58(),
-      booksideAccount: bidAccount.publicKey.toBase58(),
+      booksideAccount: askAccount.publicKey.toBase58(),
       market: market.publicKey.toBase58(),
 
     })
     .rpc({commitment: "confirmed"});
 
-    console.log("Cancel Order Signature is : ", cancelOrderSig);
+    const asksAccountAfter = await program.account.bookSide.fetch(askAccount.publicKey);
+    const marketEventAcc = await program.account.marketEvents.fetch(marketEvent.publicKey);
+    const marketAcc = await program.account.market.fetch(market.publicKey);
+
+    expect(asksAccountAfter.orderCount.toNumber()).to.equal(0);
+    expect(asksAccountAfter.orders[0].orderId.toNumber()).to.equal(0);
+    expect(asksAccountAfter.orders[0].baseAmount.toNumber()).to.equal(0);
+    expect(asksAccountAfter.orders[0].quoteAmount.toNumber()).to.equal(0);
+
+    expect(marketEventAcc.eventsToProcess.toNumber()).to.equal(4);
+    expect(marketEventAcc.totalEventsCount.toNumber()).to.equal(4);
+
+    expect(marketEventAcc.events[3].orderId.toNumber()).to.be.equal(5);
+    expect(marketEventAcc.events[3].side.toNumber()).to.be.equal(1);
+    expect(marketEventAcc.events[3].maker.toBase58()).to.be.equal(keypair.publicKey.toBase58());
+    expect(marketEventAcc.events[3].quoteAmount.toNumber()).to.be.equal(1000*1); // as there will be only one baseloft left
+    expect(marketEventAcc.events[3].baseAmount.toNumber()).to.be.equal(1 * marketAcc.baseLotSize.toNumber());
 
   })
 
@@ -534,10 +684,9 @@ describe("clobby", () => {
     .userBalance
     .fetch(userBalanceAccount);
 
-    console.log("Base Amount before consume events", balanceBefore.baseAmount.toNumber());
-    console.log("Quote Amount before consume events", balanceBefore.quoteAmount.toNumber());
-
     const eventsBefore = await program.account.marketEvents.fetch(marketEvent.publicKey);
+    let expectedBaseBalanceAmount = balanceBefore.baseAmount.toNumber();
+    let expectedQuoteBalanceAmount = balanceBefore.quoteAmount.toNumber();
 
     const remainingAccounts : {
       pubkey:anchor.web3.PublicKey,
@@ -547,6 +696,31 @@ describe("clobby", () => {
 
     for(let i = 0; i < eventsBefore.eventsToProcess.toNumber(); i++) {
       let event = eventsBefore.events[i];
+
+    
+      if(event.side.toNumber() === 0){
+        // if the side is bid
+        if(event.eventType.toNumber() === 0){
+          // if it's a fill event
+          expectedBaseBalanceAmount += event.baseAmount.toNumber();
+        }
+        else{
+          // if its an out event
+          expectedQuoteBalanceAmount += event.quoteAmount.toNumber();
+        }
+
+      }
+      else{
+        // if the side is ask
+        if(event.eventType.toNumber() === 0){
+          // if it's a fill event
+          expectedQuoteBalanceAmount += event.quoteAmount.toNumber();
+        }
+        else{
+          expectedBaseBalanceAmount += event.baseAmount.toNumber();
+        }
+      }
+
       const balanceAccount = getBalanceAccount(event.maker);
       remainingAccounts.push({
         pubkey: balanceAccount,
@@ -555,7 +729,7 @@ describe("clobby", () => {
       });
     }
 
-    const consumeEventsSig = await program.methods
+    await program.methods
     .consumeEvents()
     .accounts({
       market: market.publicKey.toBase58(),
@@ -565,15 +739,21 @@ describe("clobby", () => {
     .remainingAccounts(remainingAccounts)
     .rpc({commitment: "confirmed"});
 
-    console.log("Consume Events Signature is : ", consumeEventsSig);
-
     const balanceAfter = await program
     .account
     .userBalance
     .fetch(userBalanceAccount);
 
-    console.log("Base Amount after consume events", balanceAfter.baseAmount.toNumber());
-    console.log("Quote Amount after consume events", balanceAfter.quoteAmount.toNumber());
+    const eventsAfter = await program.account.marketEvents.fetch(marketEvent.publicKey);
+
+    expect(balanceAfter.baseAmount.toNumber()).to.be.equal(expectedBaseBalanceAmount);
+    expect(balanceAfter.quoteAmount.toNumber()).to.be.equal(expectedQuoteBalanceAmount);
+
+    expect(eventsAfter.eventsToProcess.toNumber()).to.be.equal(0);
+    expect(eventsAfter.events[0].id.toNumber()).to.be.equal(0);
+    expect(eventsAfter.events[0].orderId.toNumber()).to.be.equal(0);
+    expect(eventsAfter.events[0].quoteAmount.toNumber()).to.be.equal(0);
+    expect(eventsAfter.events[0].baseAmount.toNumber()).to.be.equal(0);
 
   })
 
@@ -582,10 +762,12 @@ describe("clobby", () => {
     const beforeBaseAccount = await getAccount(connection, userBaseTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
     const beforeQuoteAccount = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
 
-    console.log("Before Base Account Balance", Number(beforeBaseAccount.amount));
-    console.log("Before Quote Account Balance", Number(beforeQuoteAccount.amount));
+    const beforeUserBalanceAccount = await program.account.userBalance.fetch(userBalanceAccount);
 
-    const settleBalanceSig = await program.methods
+    const expectedBaseAmount = BigInt(beforeUserBalanceAccount.baseAmount.toNumber()) + beforeBaseAccount.amount;
+    const expectedQuoteAmount = BigInt(beforeUserBalanceAccount.quoteAmount.toNumber()) + beforeQuoteAccount.amount;
+
+    await program.methods
     .settleUserBalance()
     .accounts({
       market: market.publicKey.toBase58(),
@@ -596,13 +778,14 @@ describe("clobby", () => {
     })
     .rpc({commitment: "confirmed"});
 
-    console.log("Settle Balance Signature is : ", settleBalanceSig);
-
     const afterBaseAccount = await getAccount(connection, userBaseTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
     const afterQuoteAccount = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const afterUserBalanceAccount = await program.account.userBalance.fetch(userBalanceAccount);
 
-    console.log("After Base Account Balance", Number(afterBaseAccount.amount));
-    console.log("After Quote Account Balance", Number(afterQuoteAccount.amount));
+    expect(afterBaseAccount.amount).to.be.equal(expectedBaseAmount);
+    expect(afterQuoteAccount.amount).to.be.equal(expectedQuoteAmount);
+    expect(afterUserBalanceAccount.baseAmount.toNumber()).to.be.equal(0);
+    expect(afterUserBalanceAccount.quoteAmount.toNumber()).to.be.equal(0);
   })
 });
 
