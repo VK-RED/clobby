@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Clobby } from "../target/types/clobby";
 import {createMint, getAccount, getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID} from "@solana/spl-token";
+import { expect } from "chai";
 
 describe("clobby", () => {
   // Configure the client to use the local cluster.
@@ -24,14 +25,14 @@ describe("clobby", () => {
   const quoteToken = anchor.web3.Keypair.generate();
 
   const getMarketAuthority = () => {
-    const [marketAuthority] = anchor.web3.PublicKey.findProgramAddressSync(
+    const result = anchor.web3.PublicKey.findProgramAddressSync(
       [
         Buffer.from("market"),
         market.publicKey.toBuffer()
       ],
       PROGRAM_ID,
     );
-    return marketAuthority;
+    return result;
   }
 
   const getBalanceAccount = (userKey: anchor.web3.PublicKey) => {
@@ -46,7 +47,7 @@ describe("clobby", () => {
   }
 
   const userBalanceAccount = getBalanceAccount(keypair.publicKey);
-  const marketAuthority = getMarketAuthority();
+  const [marketAuthority, marketAuthorityBump] = getMarketAuthority();
 
   const baseTokenVault = getAssociatedTokenAddressSync(baseToken.publicKey, marketAuthority, true, TOKEN_2022_PROGRAM_ID);
   const quoteTokenVault= getAssociatedTokenAddressSync(quoteToken.publicKey, marketAuthority, true, TOKEN_2022_PROGRAM_ID);
@@ -253,6 +254,49 @@ describe("clobby", () => {
 
     const sig = await anchor.web3.sendAndConfirmTransaction(connection, tx, [keypair, market], {commitment: "confirmed", skipPreflight: true});
     console.log("Create Market Signature is : ", sig);
+
+    const marketAcc = await program.account.market.fetch(market.publicKey);
+
+    // create market tests
+    expect(marketAcc.asks.toBase58()).to.equal(askAccount.publicKey.toBase58());
+    expect(marketAcc.bids.toBase58()).to.equal(bidAccount.publicKey.toBase58());
+    expect(marketAcc.baseToken.toBase58()).to.equal(baseToken.publicKey.toBase58());
+    expect(marketAcc.quoteToken.toBase58()).to.equal(quoteToken.publicKey.toBase58());
+    expect(marketAcc.baseTokenVault.toBase58()).to.equal(baseTokenVault.toBase58());
+    expect(marketAcc.quoteTokenVault.toBase58()).to.equal(quoteTokenVault.toBase58());
+    expect(marketAcc.name).to.equal("SOL_USDC");
+    expect(marketAcc.baseLotSize.toNumber()).to.equal(1000);
+    expect(marketAcc.marketAuthority.toBase58()).to.equal(marketAuthority.toBase58());
+    expect(marketAcc.marketEvents.toBase58()).to.equal(marketEvent.publicKey.toBase58());
+    expect(marketAcc.marketAuthorityBump).to.equal(marketAuthorityBump);
+    expect(marketAcc.totalOrders.toNumber()).to.equal(new anchor.BN(0).toNumber());
+    expect(marketAcc.consumeEventsAuthority.toBase58()).to.equal(keypair.publicKey.toBase58());
+
+    // init_market_authority_and_event tests
+    const marketEventAcc = await program.account.marketEvents.fetch(marketEvent.publicKey);
+    const marketAuthorityAcc = await connection.getParsedAccountInfo(marketAuthority);
+    //@ts-ignore
+    expect(marketAuthorityAcc.value.space).to.equal(130);
+    expect(marketAuthorityAcc.value.owner.toBase58()).to.equal(PROGRAM_ID.toBase58());
+    expect(marketAuthorityAcc.value.lamports).to.gt(0);
+    expect(marketEventAcc.market.toBase58()).to.equal(market.publicKey.toBase58());
+    expect(marketEventAcc.eventsToProcess.toNumber()).to.equal(0);
+    
+    // create_bookside_accounts tests
+    const asksAcc = await program.account.bookSide.fetch(askAccount.publicKey);
+    const bidsAcc = await program.account.bookSide.fetch(bidAccount.publicKey);
+
+    expect(bidsAcc.side.toNumber()).to.equal(0);
+    expect(bidsAcc.orderCount.toNumber()).to.equal(0);
+    expect(bidsAcc.marketAccount.toBase58()).to.equal(market.publicKey.toBase58());
+    expect(bidsAcc.orders.length).to.equal(1024);
+
+    expect(asksAcc.side.toNumber()).to.equal(1);
+    expect(asksAcc.orderCount.toNumber()).to.equal(0);  
+    expect(asksAcc.marketAccount.toBase58()).to.equal(market.publicKey.toBase58());
+    expect(asksAcc.orders.length).to.equal(1024);
+
+
   });
 
   it("Should create User Balance Account !", async () => {
@@ -270,12 +314,26 @@ describe("clobby", () => {
     console.log("Create Balance Account Signature is : ", createBalanceSig);
 
     const balanceAccount = await program.account.userBalance.fetch(userBalanceAccount);
-    console.log("Balance Account", balanceAccount);
+    expect(balanceAccount.baseAmount.toNumber()).to.equal(0);
+    expect(balanceAccount.quoteAmount.toNumber()).to.equal(0);
+    expect(balanceAccount.user.toBase58()).to.equal(keypair.publicKey.toBase58());
+    expect(balanceAccount.market.toBase58()).to.equal(market.publicKey.toBase58());
+    expect(balanceAccount.baseToken.toBase58()).to.equal(baseToken.publicKey.toBase58());
+    expect(balanceAccount.quoteToken.toBase58()).to.equal(quoteToken.publicKey.toBase58());
 
   });
 
 
   it("Should place a Bid order and sit on the orderbook !", async () => {
+
+    /*
+      check whether appropriate quote amount is transferred to the market vault account
+      check whether the order is added to the bids account
+      check the user onchain balance account is zero
+    */
+
+    const userQuoteTokenAccountBefore = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const marketQuoteTokenVaultBefore = await getAccount(connection, quoteTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
 
     const start = Date.now();
 
@@ -304,6 +362,21 @@ describe("clobby", () => {
     const timeTaken = now - start;
     console.log(`Time taken to place order is ${timeTaken} ms`);
 
+    const userQuoteTokenAccountAfter = await getAccount(connection, userQuoteTokenAccount, undefined, TOKEN_2022_PROGRAM_ID);
+    const marketQuoteTokenVaultAfter = await getAccount(connection, quoteTokenVault, undefined, TOKEN_2022_PROGRAM_ID);
+
+    expect(userQuoteTokenAccountAfter.amount).to.equal(userQuoteTokenAccountBefore.amount - BigInt(1000));
+    expect(marketQuoteTokenVaultAfter.amount).to.equal(marketQuoteTokenVaultBefore.amount + BigInt(1000));
+
+    const bidsAcc = await program.account.bookSide.fetch(bidAccount.publicKey);
+    const marketAcc = await program.account.market.fetch(market.publicKey);
+
+    expect(marketAcc.totalOrders.toNumber()).to.equal(1);
+    expect(bidsAcc.orderCount.toNumber()).to.equal(1);
+    expect(bidsAcc.orders[0].orderId.toNumber()).to.equal(1);
+    expect(bidsAcc.orders[0].baseAmount.toNumber()).to.equal(marketAcc.baseLotSize.toNumber() * 2);
+    expect(bidsAcc.orders[0].quoteAmount.toNumber()).to.equal(1000);
+    expect(bidsAcc.orders[0].orderAuthority.toBase58()).to.equal(keypair.publicKey.toBase58());
 
     console.log("Bid Order Signature is : ", sig);
   });
